@@ -191,7 +191,7 @@ namespace RevisedFontRatioTableDotNet.DataExcel
                                                     logger.Log($"Row[{indexRow}] TextCast[{number}, {targetTextCastNameSingle}] Font Scale change[{prevWord.FontScale:F2} => {fontRate:F2}]");
                                                 }
                                             }
-                                            mlWordArray[(int)number] = new MLWord(number, fontRate, targetTextCastNameSingle, originalString);
+                                            mlWordArray[(int)number] = new MLWord(number, fontRate, targetTextCastNameSingle, originalString, 0);
                                         }
 
                                         // SDKのテキストキャストの辞書からキャスト番号を取得する。
@@ -200,7 +200,7 @@ namespace RevisedFontRatioTableDotNet.DataExcel
                                         {
                                             // テキストキャスト番号
                                             uint number = this.nameToIndexDictionary[targetTextCastNameConnected];
-                                            mlWordArray[(int)number] = new MLWord(number, fontRate, targetTextCastNameConnected, originalString);
+                                            mlWordArray[(int)number] = new MLWord(number, fontRate, targetTextCastNameConnected, originalString, 0);
                                         }
                                     }
                                 }
@@ -281,7 +281,7 @@ namespace RevisedFontRatioTableDotNet.DataExcel
                                                 }
                                             }
 
-                                            mlWordArray[(int)number] = new MLWord(number, fontRate, castName, string.Empty);
+                                            mlWordArray[(int)number] = new MLWord(number, fontRate, castName, string.Empty, 1);
                                         }
                                     }
 
@@ -358,6 +358,7 @@ namespace RevisedFontRatioTableDotNet.DataExcel
                 double rate = -1.0;
                 string infoStr = string.Empty;
                 string castName = string.Empty;
+                int nonMultiLangFlag = -1;
                 //string originalStrWithNL = string.Empty;
 
                 if (mlWord != null)
@@ -370,9 +371,10 @@ namespace RevisedFontRatioTableDotNet.DataExcel
 
                     infoStr = $" /* cnum = {mlWord.No} {mlWord.Name} */";
                     castName = mlWord.Name;
+                    nonMultiLangFlag = mlWord.NonMultiLangFlag;
                 }
                 //sbTextCastDataTableInside.AppendLine($"\t{{{castNumber}, {rate:F2}F, \"{originalStrWithNL}\" }},{infoStr}");
-                sbTextCastDataTableInside.AppendLine($"\t{{{castNumber}, {rate:F2}F, \"{castName}\"}},{infoStr}");
+                sbTextCastDataTableInside.AppendLine($"\t{{{castNumber}, {rate:F2}F, \"{castName}\", {nonMultiLangFlag}}},{infoStr}");
             }
 
             // テーブル内データ挿入

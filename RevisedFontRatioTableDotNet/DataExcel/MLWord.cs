@@ -31,12 +31,18 @@ namespace RevisedFontRatioTableDotNet.DataExcel
         /// </summary>
         public string OriginalString { get; private set; }
 
-        public MLWord(UInt32 no, double fontScale, string name, string originalString)
+        /// <summary>
+        /// 非Multi Lang Sheet Flag(multi:0, non-multi:1)
+        /// </summary>
+        public int NonMultiLangFlag { get; private set; }
+
+        public MLWord(UInt32 no, double fontScale, string name, string originalString, int nonMultiLangFlag)
         {
             this.No = no;
             this.FontScale = fontScale;
             this.Name = name;
             this.OriginalString = originalString;
+            this.NonMultiLangFlag = nonMultiLangFlag;
         }
     }
 }

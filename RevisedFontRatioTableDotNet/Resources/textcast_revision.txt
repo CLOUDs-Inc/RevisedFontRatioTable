@@ -20,9 +20,8 @@ enum {
 	TRR_LANG_RUSSIAN = 6,
 	TRR_LANG_UKRAINIAN = 7,
 	TRR_LANG_TURKISH = 8,
-	TRR_LANG_ENGLISH_AU = 9,
-	TRR_LANG_ARABIC = 10,
-	TRR_LANG_THAI = 11,
+	TRR_LANG_ARABIC = 9,
+	TRR_LANG_THAI = 10,
 	TRR_LANG_MAX
 };
 
@@ -30,6 +29,7 @@ typedef struct _RatioRevisionData {
 	mx_int32 textCastNumber;
 	mx_float32 textFontRate;
 	const char *textCastName;
+	mx_int32 nonMultiLangFlag;
 } RatioRevisionData;
 
 #define TRR_DATA_TABLE_SIZE ([TABLE_SIZE])
@@ -44,6 +44,7 @@ void WriteRatioRevisionLog();
 ##CPP-SRC
 
 #include "Util.h"
+#include<string>
 
 #ifdef __cplusplus
 extern
@@ -69,19 +70,36 @@ mx_bool CheckBigDiff(int width_ideal, int width_revised)
 	return (diffAdmit < absDiff) ? true : false;
 }
 
-int GetWidthOfLines(mx_sint32 textCastNumber){
+int GetWidthOfLines(mx_sint32 textCastNumber, mx_sint32 nonMultiLangFlag){
 	int lineCount = 0;
 	int maxWidth = 0;
 
 	/* Get line count of target text cast */
 	lineCount = TextCast::Lines::GetCount(textCastNumber);
 
-	/* Check text cast width of each line */
-	for(int lineIndex = 0; lineIndex < lineCount; ++lineIndex){
-		int targetWidth = TextCast::Lines::GetWidth(textCastNumber, lineIndex);
-		/* pick up wider width */
-		if(maxWidth < targetWidth){
-			maxWidth = targetWidth;
+	if(nonMultiLangFlag == 0){
+		/* Check text cast width of each line */
+		for(int lineIndex = 0; lineIndex < lineCount; ++lineIndex){
+			int targetWidth = TextCast::Lines::GetWidth(textCastNumber, lineIndex);
+			/* pick up wider width */
+			if(maxWidth < targetWidth){
+				maxWidth = targetWidth;
+			}
+		}
+	}
+	else{
+		/* Check text cast width of each line */
+		for(int lineIndex = 0; lineIndex < lineCount; ++lineIndex)
+		{
+			mx_char16 *pOrigStr = (mx_char16 *)NULL;
+
+			TextCast::Lines::GetROMPtrU16(textCastNumber, lineIndex, &pOrigStr, 0);
+			int targetWidth = TextCast::GetStringWidthU16(textCastNumber, pOrigStr);
+
+			/* pick up wider width */
+			if(maxWidth < targetWidth){
+				maxWidth = targetWidth;
+			}
 		}
 	}
 
@@ -93,6 +111,7 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 
 	mx_sint32 textCastNumber = pData->textCastNumber;
 	mx_float32 ratio = pData->textFontRate;
+	mx_sint32 nonMultiLangFlag = pData->nonMultiLangFlag;
 	int lineCount = 0;
 	int maxWidth = 0;
 
@@ -100,14 +119,14 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 	MXEOne_Text_SetGlyphScaleH(pMxeWorkMemory, textCastNumber, 1.0F);
 
 	/* actual width in ratio 1.0 */
-	int width_1_0 = GetWidthOfLines(textCastNumber);
+	int width_1_0 = GetWidthOfLines(textCastNumber, nonMultiLangFlag);
 	/* assumed width */
 	const int width_ideal = (int)(width_1_0 * ratio);
 
 	/* set glyph scale to ratio designated */
 	MXEOne_Text_SetGlyphScaleH(pMxeWorkMemory, textCastNumber, ratio);
 	/* actual width in ratio designated */
-	int width_actual = GetWidthOfLines(textCastNumber);
+	int width_actual = GetWidthOfLines(textCastNumber, nonMultiLangFlag);
 	int width_revised = width_actual;
 	int width_prev;
 
@@ -135,12 +154,13 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 		/* print log format into text buffer */
 		sprintf(
 			pLogLine,
-			"CastNo:%d[%s], Ideal[ratio:%.2f, width:%d], Actual[width:%d]",
+			"CastNo:%d[%s], Ideal[ratio:%.2f, width:%d], Actual[width:%d], nonMLFlag[%d]",
 			pData->textCastNumber,
 			pData->textCastName,
 			pData->textFontRate,
 			width_ideal,
-			width_revised
+			width_revised,
+			nonMultiLangFlag
 		);
 		return resultRatio;
 	}
@@ -160,7 +180,7 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 		/* set glyph scale to ratio revised */
 		MXEOne_Text_SetGlyphScaleH(pMxeWorkMemory, textCastNumber, revRatio);
 		/* actual width in ratio designated */
-		width_revised = GetWidthOfLines(textCastNumber);
+		width_revised = GetWidthOfLines(textCastNumber, nonMultiLangFlag);
 
 		/* To judge the nearest width, making up ratio or making down ratio */
 
@@ -199,12 +219,13 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 	/* print log format into text buffer */
 	sprintf(
 		pLogLine,
-		"CastNo:%d[%s], Ideal[ratio:%.2f, width:%d], Actual[width:%d], Revised[ratio:%.2f, width:%d]%s%s",
+		"CastNo:%d[%s], Ideal[ratio:%.2f, width:%d], Actual[width:%d], nonMLFlag[%d], Revised[ratio:%.2f, width:%d]%s%s",
 		pData->textCastNumber,
 		pData->textCastName,
 		pData->textFontRate,
 		width_ideal,
 		width_actual,
+		nonMultiLangFlag,
 		resultRatio,
 		width_revised,
 		(bigDiffWarn ? "[WARN_DIFF]" : ""),
@@ -214,7 +235,7 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 	return resultRatio;
 }
 
-std::string GetTextCastString(mx_sint32 textCastNumber) {
+std::string GetTextCastStringRev(mx_sint32 textCastNumber) {
 	std::string resultString = "";
 	mx_bool apiResult = false;
 	int lineCount = 0;
@@ -233,7 +254,7 @@ std::string GetTextCastString(mx_sint32 textCastNumber) {
 				resultString = std::string("str=") + std::string(pStrValue);
 			}
 			else {
-				resultString = resultString + std::string("\\n") + std::string(pStrValue);
+				resultString = resultString + std::string("[CR]") + std::string(pStrValue);
 			}
 			MXFree(pStrValue);
 		}
@@ -251,7 +272,13 @@ void WriteRatioRevisionLog(){
 	void *pMxeWorkMemory = NULL;
 	const char *TRR_LOG_START_LINE = "<== TEXT CAST RATIO REVISION RESULT LOG BEGIN";
 	const char *TRR_LOG_END_LINE = "==> TEXT CAST RATIO REVISION RESULT LOG END";
+#ifdef _WIN32
+	const char *TRR_LOG_FILENAME = "textcast_ratio_revision.log";
+	const char *TRR_TABLE_CODE = "FontRateTable.s.txt";
+#else
 	const char *TRR_LOG_FILENAME = "/home/root/textcast_ratio_revision.log";
+	const char *TRR_TABLE_CODE = "/home/root/FontRateTable.s.txt";
+#endif
 	const char *TRR_SCRIPT_PREFIX = 
 		"// --------------------------------------------------------------------------------------------------------------------\n"
 		"// Font Scale Table generated by plugin\n"
@@ -273,7 +300,6 @@ void WriteRatioRevisionLog(){
 
 	const char *TRR_TABLE_START_LINE = "const mx_float32 gTextFontScaleArrayMultiXInch[] = {";
 	const char *TRR_TABLE_END_LINE = "};";
-	const char *TRR_TABLE_CODE = "/home/root/FontRateTable.s.txt";
 
 	prevLangID = SystemInfo::GetLanguage();
 	pMxeWorkMemory = MXEOne_PlatformUtil_GetCurrentWorkMem();
@@ -308,7 +334,7 @@ void WriteRatioRevisionLog(){
 					mx_float32 revisedRatio = ReviseRatio(pMxeWorkMemory, pLogLine, pData);
 
 					/* get text of text cast */
-					std::string textCastString = GetTextCastString(pData->textCastNumber);
+					std::string textCastString = GetTextCastStringRev(pData->textCastNumber);
 
 					/* create revised ratio values table */
 					sprintf(pCodeLine, "\t%.2fF, /* cnum = %d %s %s */", revisedRatio, pData->textCastNumber, pData->textCastName, textCastString.c_str());
@@ -343,9 +369,11 @@ void WriteRatioRevisionLog(){
 	}
 
 	if(fpLog != NULL){
+		fflush(fpLog);
 		fclose(fpLog);
 	}
 	if(fpTableCode != NULL){
+		fflush(fpTableCode);
 		fclose(fpTableCode);
 	}
 
