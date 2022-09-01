@@ -11,17 +11,17 @@
 #define DELTA(a,b) ((a) >= (b) ? (a)-(b) : (b)-(a))
 
 enum {
-	TRR_LANG_ENGLISH_UK = 0,
-	TRR_LANG_GERMAN = 1,
-	TRR_LANG_FRENCH = 2,
-	TRR_LANG_SPANISH = 3,
-	TRR_LANG_ITALIAN = 4,
-	TRR_LANG_PORTUGUESE = 5,
-	TRR_LANG_RUSSIAN = 6,
-	TRR_LANG_UKRAINIAN = 7,
-	TRR_LANG_TURKISH = 8,
-	TRR_LANG_ARABIC = 9,
-	TRR_LANG_THAI = 10,
+	TRR_LANG_ENG = 0,
+	TRR_LANG_GER = 1,
+	TRR_LANG_FRE = 2,
+	TRR_LANG_SPA = 3,
+	TRR_LANG_ITA = 4,
+	TRR_LANG_POR = 5,
+	TRR_LANG_RUS = 6,
+	TRR_LANG_UKR = 7,
+	TRR_LANG_TUR = 8,
+	TRR_LANG_ARA = 9,
+	TRR_LANG_THA = 10,
 	TRR_LANG_MAX
 };
 
@@ -106,7 +106,7 @@ int GetWidthOfLines(mx_sint32 textCastNumber, mx_sint32 nonMultiLangFlag){
 	return maxWidth;
 }
 
-mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* pData){
+mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* pData, int langID){
 	mx_float32 resultRatio = -1.0f;
 
 	mx_sint32 textCastNumber = pData->textCastNumber;
@@ -142,11 +142,6 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 		makingWider = false;
 		shiftRatio = -0.01f;
 	}
-	else if(width_revised < width_ideal)
-	{
-		makingWider = true;
-		shiftRatio = 0.01f;
-	}
 	else{
 		/* ideal and actual width are matched */
 		resultRatio = ratio;
@@ -154,7 +149,8 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 		/* print log format into text buffer */
 		sprintf(
 			pLogLine,
-			"CastNo:%d[%s], Ideal[ratio:%.2f, width:%d], Actual[width:%d], nonMLFlag[%d]",
+			"Lang:%d, CastNo:%d[%s], Ideal[ratio:%.2f, width:%d], Actual[width:%d], nonMLFlag[%d]",
+			langID,
 			pData->textCastNumber,
 			pData->textCastName,
 			pData->textFontRate,
@@ -219,7 +215,8 @@ mx_float32 ReviseRatio(void* pMxeWorkMemory, char* pLogLine, RatioRevisionData* 
 	/* print log format into text buffer */
 	sprintf(
 		pLogLine,
-		"CastNo:%d[%s], Ideal[ratio:%.2f, width:%d], Actual[width:%d], nonMLFlag[%d], Revised[ratio:%.2f, width:%d]%s%s",
+		"Lang:%d, CastNo:%d[%s], Ideal[ratio:%.2f, width:%d], Actual[width:%d], nonMLFlag[%d], Revised[ratio:%.2f, width:%d]%s%s",
+		langID,
 		pData->textCastNumber,
 		pData->textCastName,
 		pData->textFontRate,
@@ -262,6 +259,8 @@ std::string GetTextCastStringRev(mx_sint32 textCastNumber) {
 
 	return resultString;
 }
+
+mx_float32 revisedRatioArray[TRR_DATA_TABLE_SIZE][TRR_LANG_MAX];
 
 void WriteRatioRevisionLog(){
 	int indexID;
@@ -319,51 +318,104 @@ void WriteRatioRevisionLog(){
 		fwrite(TRR_TABLE_START_LINE, sizeof(char), strlen(TRR_TABLE_START_LINE), fpTableCode);
 		fputc('\n', fpTableCode);
 
-		bLangChange = SystemInfo::SetLanguage(0);
-		if(bLangChange == true){
-			for(indexID = 0; indexID < TRR_DATA_TABLE_SIZE; ++indexID)
-			{
-				RatioRevisionData *pData = (RatioRevisionData*)&([TABLE_NAME][indexID]);
-
-				char pLogLine[512] = {0};
-				char pCodeLine[512] = {0};
-
-				if(0.0F < pData->textFontRate)
-				{
-					/* calc revised ratio and its log string */
-					mx_float32 revisedRatio = ReviseRatio(pMxeWorkMemory, pLogLine, pData);
-
-					/* get text of text cast */
-					std::string textCastString = GetTextCastStringRev(pData->textCastNumber);
-
-					/* create revised ratio values table */
-					sprintf(pCodeLine, "\t%.2fF, /* cnum = %d %s %s */", revisedRatio, pData->textCastNumber, pData->textCastName, textCastString.c_str());
-				}
-				else
-				{
-					/* create log string that text cast unused */
-					sprintf(pLogLine, "CastNo:%d Not Used", indexID);
-
-					/* create revised ratio values table: -1.0f */
-					sprintf(pCodeLine, "\t%.2fF, /* cnum = %d */", -1.0F, indexID);
-				}
-
-				/* LOG(pLogLine); */
-				fwrite(pLogLine, sizeof(char), strlen(pLogLine), fpLog);
-				fputc('\n', fpLog);
-
-				/* write revised ratio table data */
-				fwrite(pCodeLine, sizeof(char), strlen(pCodeLine), fpTableCode);
-				fputc('\n', fpTableCode);
+		for (int index = 0; index < TRR_DATA_TABLE_SIZE; ++index) {
+			for (langID = 0; langID < TRR_LANG_MAX; ++langID) {
+				revisedRatioArray[index][langID] = -1.0F;
 			}
 		}
-		else{
-			/* Lang Change Failed */
-			/* do nothing */
-		}
 
+		for (langID = 0; langID < TRR_LANG_MAX; ++langID)
+		{
+			bLangChange = SystemInfo::SetLanguage(langID);
+			if(bLangChange == true){
+				for(indexID = 0; indexID < TRR_DATA_TABLE_SIZE; ++indexID)
+				{
+					RatioRevisionData *pData = (RatioRevisionData*)&([TABLE_NAME][indexID]);
+
+					char pLogLine[512] = {0};
+					//char pCodeLine[512] = { 0 };
+
+					if(0.0F < pData->textFontRate)
+					{
+						/* calc revised ratio and its log string */
+						mx_float32 revisedRatio = ReviseRatio(pMxeWorkMemory, pLogLine, pData, langID);
+						revisedRatioArray[indexID][langID] = revisedRatio;
+
+						/* get text of text cast */
+						//std::string textCastString = GetTextCastStringRev(pData->textCastNumber);
+
+						/* create revised ratio values table */
+						//sprintf(pCodeLine, "\t%.2fF, /* cnum = %d %s %s */", revisedRatio, pData->textCastNumber, pData->textCastName, textCastString.c_str());
+					}
+					else
+					{
+						/* create log string that text cast unused */
+						sprintf(pLogLine, "Lang:%d, CastNo:%d Not Used", langID, indexID);
+
+						/* create revised ratio values table: -1.0f */
+						//sprintf(pCodeLine, "\t%.2fF, /* cnum = %d */", -1.0F, indexID);
+					}
+
+					/* LOG(pLogLine); */
+					fwrite(pLogLine, sizeof(char), strlen(pLogLine), fpLog);
+					fputc('\n', fpLog);
+				}
+			}
+			else{
+				/* Lang Change Failed */
+				/* do nothing */
+			}
+		}
 		fwrite(TRR_LOG_END_LINE, sizeof(char), strlen(TRR_LOG_END_LINE), fpLog);
 		fputc('\n', fpLog);
+
+		SystemInfo::SetLanguage(0);
+
+		for (indexID = 0; indexID < TRR_DATA_TABLE_SIZE; ++indexID)
+		{
+			RatioRevisionData* pData = (RatioRevisionData*)&(gTextRatioRevDataArray[indexID]);
+			mx_float32 minRatio = 100.0f;
+
+			/* get text of text cast */
+			std::string textCastString = GetTextCastStringRev(pData->textCastNumber);
+
+			
+			for (langID = 0; langID < TRR_LANG_MAX; ++langID) {
+				if (0.0f < revisedRatioArray[indexID][langID]) {
+					if (revisedRatioArray[indexID][langID] < minRatio) {
+						minRatio = revisedRatioArray[indexID][langID];
+					}
+				}
+			}
+			
+			char pCodeLine[1024] = { 0 };
+			if (0.0f < pData->textFontRate) {
+				/* create revised ratio values table */
+				sprintf(pCodeLine, "\t%.2fF, /* cnum=%d [%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f] %s %s */",
+					minRatio, pData->textCastNumber,
+					revisedRatioArray[indexID][TRR_LANG_ENG],
+					revisedRatioArray[indexID][TRR_LANG_GER],
+					revisedRatioArray[indexID][TRR_LANG_FRE],
+					revisedRatioArray[indexID][TRR_LANG_SPA],
+					revisedRatioArray[indexID][TRR_LANG_ITA],
+					revisedRatioArray[indexID][TRR_LANG_POR],
+					revisedRatioArray[indexID][TRR_LANG_RUS],
+					revisedRatioArray[indexID][TRR_LANG_UKR],
+					revisedRatioArray[indexID][TRR_LANG_TUR],
+					revisedRatioArray[indexID][TRR_LANG_ARA],
+					revisedRatioArray[indexID][TRR_LANG_THA],
+					pData->textCastName, textCastString.c_str());
+			}
+			else {
+				/* create revised ratio values table: -1.0f */
+				sprintf(pCodeLine, "\t%.2fF, /* cnum = %d */", -1.0F, indexID);
+			}
+
+			/* write revised ratio table data */
+			fwrite(pCodeLine, sizeof(char), strlen(pCodeLine), fpTableCode);
+			fputc('\n', fpTableCode);
+		}
+
 		fwrite(TRR_TABLE_END_LINE, sizeof(char), strlen(TRR_TABLE_END_LINE), fpTableCode);
 		fputc('\n', fpTableCode);
 	}
